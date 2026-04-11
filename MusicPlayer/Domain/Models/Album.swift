@@ -8,9 +8,9 @@
 import Foundation
 
 struct Album: Identifiable, Equatable {
-    let id: Int                  // collectionId
-    let title: String            // collectionName
-    let artist: String           // artistName
+    let id: Int
+    let title: String
+    let artist: String
     let artworkURL: URL?
     let songs: [Song]
 }

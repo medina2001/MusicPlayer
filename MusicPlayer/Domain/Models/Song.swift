@@ -8,12 +8,12 @@
 import Foundation
 
 struct Song: Identifiable, Equatable, Hashable {
-    let id: Int                  // trackId from iTunes
-    let title: String            // trackName
-    let artist: String           // artistName
-    let album: String            // collectionName
-    let artworkURL: URL?         // artworkUrl100
-    let previewURL: URL?         // previewUrl
-    let duration: TimeInterval   // trackTimeMillis / 1000
-    let collectionId: Int        // collectionId
+    let id: Int
+    let title: String
+    let artist: String
+    let album: String
+    let artworkURL: URL?
+    let previewURL: URL?
+    let duration: TimeInterval
+    let collectionId: Int
 }
