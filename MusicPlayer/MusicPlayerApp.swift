@@ -15,8 +15,7 @@ struct MusicPlayerApp: App {
     var body: some Scene {
         WindowGroup {
             if let container {
-                // TODO: Replace with SplashView() in task 9
-                Text("Loading...")
+                SplashView()
                     .environment(container)
             } else {
                 ProgressView()
@@ -28,7 +27,6 @@ struct MusicPlayerApp: App {
                 container = DependencyContainer(modelContext: modelContainer.mainContext)
             case .failure(let error):
                 print("ModelContainer failed: \(error)")
-                // TODO: Handle gracefully in task 9
             }
         }
     }

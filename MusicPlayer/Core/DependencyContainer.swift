@@ -25,4 +25,11 @@ final class DependencyContainer {
         recentSongsRepository = DefaultRecentSongsRepository(context: modelContext)
         playerService = AVPlayerService()
     }
+
+    func makeSongsViewModel() -> SongsViewModel {
+        SongsViewModel(
+            songsRepository: songsRepository,
+            recentSongsRepository: recentSongsRepository
+        )
+    }
 }
