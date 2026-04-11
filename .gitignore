@@ -60,3 +60,9 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# IDE / Editor settings
+.vscode/
+
+# Kiro specs and AI tooling
+.kiro/
