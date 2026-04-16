@@ -37,10 +37,11 @@ final class DependencyContainer {
         AlbumsViewModel(albumsRepository: albumsRepository)
     }
 
-    func makePlayerViewModel() -> PlayerViewModel {
+    func makePlayerViewModel(playerContext: PlayerContext) -> PlayerViewModel {
         PlayerViewModel(
             player: playerService,
-            recentSongsRepository: recentSongsRepository
+            recentSongsRepository: recentSongsRepository,
+            playerContext: playerContext
         )
     }
 }

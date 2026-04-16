@@ -52,14 +52,6 @@ final class AVPlayerService: PlayerService {
         player?.seek(to: cmTime)
     }
 
-    func seekForward(by seconds: TimeInterval) {
-        seek(to: currentTime + seconds)
-    }
-
-    func seekBackward(by seconds: TimeInterval) {
-        seek(to: currentTime - seconds)
-    }
-
     func release() {
         player?.pause()
 

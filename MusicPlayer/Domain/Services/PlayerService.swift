@@ -25,7 +25,5 @@ protocol PlayerService: AnyObject {
     func play()
     func pause()
     func seek(to time: TimeInterval)
-    func seekForward(by seconds: TimeInterval)
-    func seekBackward(by seconds: TimeInterval)
     func release()
 }

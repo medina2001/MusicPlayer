@@ -16,9 +16,13 @@ struct MoreOptionsSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
-                songInfo
+                MoreOptionsSongInfoSection(song: song)
                 Divider()
-                viewAlbumButton
+                MoreOptionsActionButton(
+                    title: "View Album",
+                    systemImage: "square.stack",
+                    action: handleViewAlbum
+                )
                 Spacer()
             }
             .padding(24)
@@ -33,11 +37,19 @@ struct MoreOptionsSheet: View {
         .presentationDetents([.medium])
     }
 
-    // MARK: - Song Info
+    private func handleViewAlbum() {
+        dismiss()
+        onViewAlbum()
+    }
+}
 
-    private var songInfo: some View {
+private struct MoreOptionsSongInfoSection: View {
+    let song: Song
+
+    var body: some View {
         HStack(spacing: 16) {
-            artworkThumbnail
+            ArtworkImage(artworkURL: song.artworkURL)
+                .frame(width: 56, height: 56)
             VStack(alignment: .leading, spacing: 4) {
                 Text(song.title)
                     .font(.headline)
@@ -50,45 +62,18 @@ struct MoreOptionsSheet: View {
             Spacer()
         }
     }
+}
 
-    private var artworkThumbnail: some View {
-        Group {
-            if let url = song.artworkURL {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().scaledToFill()
-                    default:
-                        placeholderArtwork
-                    }
-                }
-            } else {
-                placeholderArtwork
-            }
-        }
-        .frame(width: 56, height: 56)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
+private struct MoreOptionsActionButton: View {
+    let title: String
+    let systemImage: String
+    let action: () -> Void
 
-    private var placeholderArtwork: some View {
-        RoundedRectangle(cornerRadius: 8)
-            .fill(Color.secondary.opacity(0.2))
-            .overlay(
-                Image(systemName: "music.note")
-                    .foregroundStyle(.secondary)
-            )
-    }
-
-    // MARK: - View Album Button
-
-    private var viewAlbumButton: some View {
-        Button {
-            dismiss()
-            onViewAlbum()
-        } label: {
+    var body: some View {
+        Button(action: action) {
             HStack {
-                Image(systemName: "square.stack")
-                Text("View Album")
+                Image(systemName: systemImage)
+                Text(title)
                 Spacer()
                 Image(systemName: "chevron.right")
                     .foregroundStyle(.secondary)
@@ -98,6 +83,6 @@ struct MoreOptionsSheet: View {
             .padding(16)
             .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
         }
-        .accessibilityLabel("View album")
+        .accessibilityLabel(title)
     }
 }

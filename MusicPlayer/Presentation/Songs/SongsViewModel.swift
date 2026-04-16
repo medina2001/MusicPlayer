@@ -11,18 +11,15 @@ import Foundation
 @Observable
 @MainActor
 final class SongsViewModel {
-    private(set) var viewState: ViewState<[Song]> = .loading
-    private(set) var recentSongs: [Song] = []
-    private(set) var loadedSongs: [Song] = []
+    private(set) var viewState: ViewState<[Song]> = .idle
     private(set) var paginationExhausted: Bool = false
     private(set) var isLoadingPage: Bool = false
-    
+
     private(set) var lastSearchedTerm: String = ""
-    private var searchTask: Task<Void, Never>? = nil
-    private(set) var isSearching = false
+    private var searchTask: Task<Void, Never>?
+    private var hasLoadedInitialContent = false
+
     var searchText = ""
-    
-    var selectedSong: Song? = nil
 
     private var currentTerm: String = ""
     private var currentOffset: Int = 0
@@ -36,9 +33,20 @@ final class SongsViewModel {
         self.recentSongsRepository = recentSongsRepository
     }
 
+    var visibleSongs: [Song] {
+        guard case .loaded(let songs) = viewState else { return [] }
+        return songs
+    }
+
+    func viewDidAppear() {
+        guard !hasLoadedInitialContent else { return }
+        hasLoadedInitialContent = true
+        Task { await loadRecentSongs() }
+    }
+
     func search(term: String) async {
         currentTerm = term.trimmingCharacters(in: .whitespacesAndNewlines)
-        if currentTerm.isEmpty { return }
+        guard !currentTerm.isEmpty else { return }
 
         currentOffset = 0
         paginationExhausted = false
@@ -49,6 +57,7 @@ final class SongsViewModel {
 
             if Task.isCancelled { return }
 
+            currentOffset = 0
             paginationExhausted = songs.count < pageSize
             viewState = .loaded(songs)
         } catch let error as AppError {
@@ -91,55 +100,61 @@ final class SongsViewModel {
     }
 
     func refresh() async {
-        // TODO: Check logic
         currentOffset = 0
         paginationExhausted = false
-        await search(term: currentTerm)
+        if currentTerm.isEmpty {
+            await loadRecentSongs()
+        } else {
+            await search(term: currentTerm)
+        }
     }
 
     func resetSearchState() {
         currentTerm = ""
         currentOffset = 0
         paginationExhausted = false
-        // TODO: Check View State
+        searchTask?.cancel()
     }
 
     func loadRecentSongs() async {
         do {
-            recentSongs = try await recentSongsRepository.fetchRecentSongs()
+            let recentSongs = try await recentSongsRepository.fetchRecentSongs()
+            if Task.isCancelled { return }
+            viewState = .loaded(recentSongs)
         } catch {
-            print("Could not load recent songs. \(#function) in \(#file)")
+            if Task.isCancelled { return }
+            viewState = .error(.persistenceFailure)
         }
     }
-    
+
     func handleSearchTextChange(_ term: String) {
         searchTask?.cancel()
-        
+
         let trimmedTerm = term.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         guard trimmedTerm != lastSearchedTerm else { return }
-        
+
         searchTask = Task {
             try? await Task.sleep(for: .milliseconds(500))
-            
+
             if Task.isCancelled { return }
-            
+
             await performSearch(trimmedTerm)
         }
     }
-    
+
     private func performSearch(_ term: String) async {
         lastSearchedTerm = term
-        
+
         if term.isEmpty {
             resetSearchState()
             await loadRecentSongs()
             return
         }
-        
+
         await search(term: term)
     }
-    
+
     func tryAgain() async {
         if searchText.isEmpty {
             await loadRecentSongs()
@@ -147,13 +162,4 @@ final class SongsViewModel {
             await search(term: searchText)
         }
     }
-    
-    func didSelectSong(_ song: Song) {
-        selectedSong = song
-    }
-    
-    func presentAlbumSheet(for song: Song) {
-        
-    }
 }
-

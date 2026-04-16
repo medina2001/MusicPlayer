@@ -8,30 +8,30 @@
 import SwiftUI
 
 struct SongsView: View {
-    @Environment(DependencyContainer.self) private var container
-    @State private var viewModel: SongsViewModel?
+    let router: AppRouter
+
+    @State private var viewModel: SongsViewModel
+
+    init(container: DependencyContainer, router: AppRouter) {
+        self.router = router
+        _viewModel = State(initialValue: container.makeSongsViewModel())
+    }
 
     var body: some View {
-        Group {
-            if let viewModel {
-                SongsContentView(viewModel: viewModel)
-                // FIXME: Solve app navigation
-                    .navigationDestination(item: $viewModel.selectedSong) { song in
-                        PlayerView(song: song)
-                    }
-            } else {
-                ProgressView()
-                    .controlSize(.extraLarge)
-            }
-        }
-        .onAppear {
-            if viewModel == nil {
-                viewModel = container.makeSongsViewModel()
-            } else {
-                // TODO: Handle viewDidAppear()
-                viewModel.viewDidAppear()
-            }
-        }
+        SongsContentView(
+            viewModel: viewModel,
+            onSelectSong: handleSongSelection,
+            onViewAlbum: handleViewAlbum
+        )
+        .onAppear(perform: viewModel.viewDidAppear)
+    }
+
+    private func handleSongSelection(_ song: Song) {
+        router.presentPlayer(song: song, queue: viewModel.visibleSongs)
+    }
+
+    private func handleViewAlbum(_ song: Song) {
+        router.presentAlbum(for: song)
     }
 }
 
@@ -39,6 +39,8 @@ struct SongsView: View {
 
 private struct SongsContentView: View {
     @Bindable var viewModel: SongsViewModel
+    let onSelectSong: (Song) -> Void
+    let onViewAlbum: (Song) -> Void
 
     var body: some View {
         mainContent
@@ -46,10 +48,9 @@ private struct SongsContentView: View {
             .onChange(of: viewModel.searchText) {
                 viewModel.handleSearchTextChange(viewModel.searchText)
             }
-//            .refreshable {
-                // TODO: Check refresh logic
-//                await viewModel.refresh()
-//            }
+            .refreshable {
+                await viewModel.refresh()
+            }
             .navigationTitle("Songs")
             .navigationBarTitleDisplayMode(.automatic)
             .searchable(
@@ -62,6 +63,10 @@ private struct SongsContentView: View {
     @ViewBuilder
     private var mainContent: some View {
         switch viewModel.viewState {
+        case .idle:
+            ProgressView()
+                .controlSize(.extraLarge)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .loading:
             ProgressView()
                 .controlSize(.extraLarge)
@@ -89,10 +94,10 @@ private struct SongsContentView: View {
         List {
             ForEach(Array(songs.enumerated()), id: \.offset) { index, song in
                 Button {
-                    viewModel.didSelectSong(song)
+                    onSelectSong(song)
                 } label: {
                     SongRow(song: song) {
-                        viewModel.presentAlbumSheet(for: song)
+                        onViewAlbum(song)
                     }
                     .accessibilityLabel("\(song.title) by \(song.artist)")
                 }

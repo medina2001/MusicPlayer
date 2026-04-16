@@ -12,16 +12,23 @@ import Observation
 final class AlbumsViewModel {
     private let albumsRepository: AlbumsRepository
 
-    private(set) var viewState: ViewState<Album> = .loading
+    private(set) var viewState: ViewState<Album> = .idle
+    private var loadedCollectionId: Int?
 
     init(albumsRepository: AlbumsRepository) {
         self.albumsRepository = albumsRepository
+    }
+
+    func fetchAlbumIfNeeded(collectionId: Int) async {
+        guard loadedCollectionId != collectionId else { return }
+        await fetchAlbum(collectionId: collectionId)
     }
 
     func fetchAlbum(collectionId: Int) async {
         viewState = .loading
         do {
             let album = try await albumsRepository.fetchAlbum(collectionId: collectionId)
+            loadedCollectionId = collectionId
             viewState = .loaded(album)
         } catch let error as AppError {
             viewState = .error(error)
@@ -31,7 +38,7 @@ final class AlbumsViewModel {
     }
 
     func retryFetch(collectionId: Int) async {
-        viewState = .loading
+        loadedCollectionId = nil
         await fetchAlbum(collectionId: collectionId)
     }
 }

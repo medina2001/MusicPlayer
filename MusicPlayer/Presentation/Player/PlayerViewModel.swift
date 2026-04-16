@@ -13,25 +13,30 @@ import Observation
 final class PlayerViewModel {
     private let player: PlayerService
     private let recentSongsRepository: RecentSongsRepository
+    private let playerContext: PlayerContext
 
-    var song: Song?
-    var showMoreOptions: Bool = false
+    private(set) var currentSong: Song
 
     var playerState: PlayerState { player.state }
     var currentTime: TimeInterval { player.currentTime }
     var duration: TimeInterval { player.duration }
+    var canPlayPreviousSong: Bool { playerContext.hasPreviousSong }
+    var canPlayNextSong: Bool { playerContext.hasNextSong }
 
-    init(player: PlayerService, recentSongsRepository: RecentSongsRepository) {
+    init(
+        player: PlayerService,
+        recentSongsRepository: RecentSongsRepository,
+        playerContext: PlayerContext
+    ) {
         self.player = player
         self.recentSongsRepository = recentSongsRepository
+        self.playerContext = playerContext
+        self.currentSong = playerContext.currentSong
     }
 
-    func onAppear(song: Song) async {
-        self.song = song
-        guard let url = song.previewURL else { return }
-        player.load(url: url)
-        player.play()
-        try? await recentSongsRepository.save(song: song)
+    func playCurrentSong() async {
+        currentSong = playerContext.currentSong
+        await loadAndPlay(song: currentSong)
     }
 
     func onDisappear() {
@@ -50,17 +55,26 @@ final class PlayerViewModel {
         player.seek(to: time)
     }
 
-    func seekForward() {
-        player.seekForward(by: 15)
+    func playNextSong() {
+        guard let nextSong = playerContext.goToNextSong() else { return }
+        currentSong = nextSong
+        Task { await loadAndPlay(song: nextSong) }
     }
 
-    func seekBackward() {
-        player.seekBackward(by: 15)
+    func playPreviousSong() {
+        guard let previousSong = playerContext.goToPreviousSong() else { return }
+        currentSong = previousSong
+        Task { await loadAndPlay(song: previousSong) }
     }
 
     func retry() {
-        guard let song, let url = song.previewURL else { return }
+        Task { await loadAndPlay(song: currentSong) }
+    }
+
+    private func loadAndPlay(song: Song) async {
+        guard let url = song.previewURL else { return }
         player.load(url: url)
         player.play()
+        try? await recentSongsRepository.save(song: song)
     }
 }

@@ -10,7 +10,7 @@ import SwiftUI
 struct SongRow: View {
     let song: Song
     let displayAlbumSheet: () -> Void
-    
+
     var body: some View {
         HStack(spacing: 16) {
             ArtworkImage(artworkURL: song.artworkURL)
@@ -23,16 +23,16 @@ struct SongRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            
+
             Spacer()
-            
-            Image(systemName: "ellipsis")
-                .foregroundStyle(.secondary)
-                .frame(width: 12, height: 12)
-                .onTapGesture {
-                    displayAlbumSheet()
-                    print("Should display Action Sheet")
-                }
+
+            Button(action: displayAlbumSheet) {
+                Image(systemName: "ellipsis")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 12, height: 12)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("View album options")
         }
     }
 }

@@ -8,95 +8,109 @@
 import SwiftUI
 
 struct PlayerView: View {
-    let song: Song
+    let router: AppRouter
+    let playerContext: PlayerContext
 
-    @Environment(DependencyContainer.self) private var container
-    @State private var viewModel: PlayerViewModel?
-    @State private var navigateToAlbum = false
+    @State private var viewModel: PlayerViewModel
+    @State private var isShowingMoreOptions = false
+
+    init(container: DependencyContainer, router: AppRouter, playerContext: PlayerContext) {
+        self.router = router
+        self.playerContext = playerContext
+        _viewModel = State(
+            initialValue: container.makePlayerViewModel(playerContext: playerContext)
+        )
+    }
 
     var body: some View {
-        Group {
-            if let viewModel {
-                PlayerContentView(
-                    viewModel: viewModel,
-                    navigateToAlbum: $navigateToAlbum
-                )
-            } else {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(LinearGradient.appBackground.ignoresSafeArea())
-            }
+        PlayerContentView(
+            viewModel: viewModel,
+            isShowingMoreOptions: $isShowingMoreOptions,
+            onViewAlbum: presentAlbum
+        )
+        .task(id: playerContext.currentSong.id) {
+            await viewModel.playCurrentSong()
         }
-        .navigationDestination(isPresented: $navigateToAlbum) {
-            AlbumView(collectionId: song.collectionId)
-        }
-        .onAppear {
-            if viewModel == nil {
-                viewModel = container.makePlayerViewModel()
-            }
-        }
-        .task(id: song.id) {
-            guard let viewModel else { return }
-            await viewModel.onAppear(song: song)
-        }
-        .onDisappear {
-            viewModel?.onDisappear()
-        }
+        .onDisappear(perform: viewModel.onDisappear)
+    }
+
+    private func presentAlbum() {
+        router.presentAlbum(for: viewModel.currentSong)
     }
 }
 
-// MARK: - Content View
-
 private struct PlayerContentView: View {
-    let viewModel: PlayerViewModel
-    @Binding var navigateToAlbum: Bool
+    @Bindable var viewModel: PlayerViewModel
+    @Binding var isShowingMoreOptions: Bool
+
+    let onViewAlbum: () -> Void
+
     @State private var isEditingSlider = false
 
     var body: some View {
         VStack(spacing: 0) {
-            artworkSection
+            PlayerArtworkSection(song: viewModel.currentSong)
                 .padding(.top, 24)
-            
-            infoSection
+
+            PlayerInfoSection(song: viewModel.currentSong)
                 .padding(.top, 32)
                 .padding(.horizontal, 24)
-            
-            seekSection
-                .padding(.top, 24)
-                .padding(.horizontal, 24)
-            
-            controlsSection
-                .padding(.top, 24)
-                .padding(.horizontal, 24)
-            
+
+            PlayerSeekSection(
+                currentTime: viewModel.currentTime,
+                duration: viewModel.duration,
+                isEditingSlider: $isEditingSlider,
+                onSeek: viewModel.seek(to:)
+            )
+            .padding(.top, 24)
+            .padding(.horizontal, 24)
+
+            PlayerControlsSection(
+                playerState: viewModel.playerState,
+                canPlayPreviousSong: viewModel.canPlayPreviousSong,
+                canPlayNextSong: viewModel.canPlayNextSong,
+                onPrevious: viewModel.playPreviousSong,
+                onPlayPause: viewModel.togglePlayPause,
+                onNext: viewModel.playNextSong
+            )
+            .padding(.top, 24)
+            .padding(.horizontal, 24)
+
             if case .error(let error) = viewModel.playerState {
-                errorBanner(error)
+                PlayerErrorBanner(error: error, retry: viewModel.retry)
                     .padding(.top, 16)
                     .padding(.horizontal, 24)
             }
-            
+
             Spacer()
         }
-        .sheet(isPresented: Bindable(viewModel).showMoreOptions) {
-            if let song = viewModel.song {
-                MoreOptionsSheet(song: song) {
-                    navigateToAlbum = true
-                }
-            }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(LinearGradient.appBackground.ignoresSafeArea())
+        .sheet(isPresented: $isShowingMoreOptions) {
+            MoreOptionsSheet(song: viewModel.currentSong, onViewAlbum: onViewAlbum)
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                moreOptionsButton
+                Button {
+                    isShowingMoreOptions = true
+                } label: {
+                    Label("More options", systemImage: "ellipsis.circle")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityLabel("More options")
             }
         }
         .navigationBarTitleDisplayMode(.inline)
     }
+}
 
-    // MARK: - Artwork
+private struct PlayerArtworkSection: View {
+    let song: Song
 
-    private var artworkSection: some View {
+    var body: some View {
         Group {
-            if let url = viewModel.song?.artworkURL {
+            if let url = song.artworkURL {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .success(let image):
@@ -104,38 +118,30 @@ private struct PlayerContentView: View {
                             .resizable()
                             .scaledToFit()
                     default:
-                        placeholderArtwork
+                        PlayerPlaceholderView(cornerRadius: 32)
                     }
                 }
             } else {
-                placeholderArtwork
+                PlayerPlaceholderView(cornerRadius: 32)
             }
         }
         .frame(width: 264, height: 264)
         .clipShape(RoundedRectangle(cornerRadius: 32))
     }
+}
 
-    private var placeholderArtwork: some View {
-        RoundedRectangle(cornerRadius: 32)
-            .redacted(reason: .placeholder)
-            .overlay(
-                Image(systemName: "music.note")
-                    .font(.system(size: 64))
-                    .foregroundStyle(.secondary)
-            )
-    }
+private struct PlayerInfoSection: View {
+    let song: Song
 
-    // MARK: - Info
-
-    private var infoSection: some View {
+    var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text(viewModel.song?.title ?? "")
+                Text(song.title)
                     .font(.title2)
                     .fontWeight(.bold)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
-                Text(viewModel.song?.artist ?? "")
+                Text(song.artist)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -143,17 +149,22 @@ private struct PlayerContentView: View {
             Spacer()
         }
     }
+}
 
-    // MARK: - Seek
+private struct PlayerSeekSection: View {
+    let currentTime: TimeInterval
+    let duration: TimeInterval
+    @Binding var isEditingSlider: Bool
+    let onSeek: (TimeInterval) -> Void
 
-    private var seekSection: some View {
+    var body: some View {
         VStack(spacing: 4) {
             Slider(
                 value: Binding(
-                    get: { viewModel.duration > 0 ? viewModel.currentTime / viewModel.duration : 0 },
+                    get: { duration > 0 ? currentTime / duration : 0 },
                     set: { newValue in
                         if isEditingSlider {
-                            viewModel.seek(to: newValue * viewModel.duration)
+                            onSeek(newValue * duration)
                         }
                     }
                 ),
@@ -163,82 +174,94 @@ private struct PlayerContentView: View {
                 }
             )
             .accessibilityLabel("Seek")
-            .accessibilityValue("\(formattedTime(viewModel.currentTime)) of \(formattedTime(viewModel.duration))")
+            .accessibilityValue("\(formattedTime(currentTime)) of \(formattedTime(duration))")
 
             HStack {
-                Text(formattedTime(viewModel.currentTime))
+                Text(formattedTime(currentTime))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text(formattedTime(viewModel.duration))
+                Text(formattedTime(duration))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
     }
 
-    // MARK: - Controls
+    private func formattedTime(_ time: TimeInterval) -> String {
+        guard time.isFinite else { return "0:00" }
+        let totalSeconds = max(0, Int(time.rounded()))
+        let minutes = totalSeconds / 60
+        let seconds = totalSeconds % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+}
 
-    private var controlsSection: some View {
+private struct PlayerControlsSection: View {
+    let playerState: PlayerState
+    let canPlayPreviousSong: Bool
+    let canPlayNextSong: Bool
+    let onPrevious: () -> Void
+    let onPlayPause: () -> Void
+    let onNext: () -> Void
+
+    var body: some View {
         HStack(spacing: 40) {
-            Button {
-                viewModel.seekBackward()
-            } label: {
-                Image(systemName: "gobackward.15")
+            Button(action: onPrevious) {
+                Image(systemName: "backward.end.fill")
                     .font(.title)
                     .foregroundStyle(.primary)
             }
+            .disabled(!canPlayPreviousSong)
             .accessibilityLabel("Previous song")
 
-            playPauseButton
+            Button(action: onPlayPause) {
+                Group {
+                    switch playerState {
+                    case .loading:
+                        ProgressView()
+                            .tint(.primary)
+                            .frame(width: 44, height: 44)
+                    case .playing:
+                        Image(systemName: "pause.circle.fill")
+                            .font(.system(size: 64))
+                            .foregroundStyle(.primary)
+                    default:
+                        Image(systemName: "play.circle.fill")
+                            .font(.system(size: 64))
+                            .foregroundStyle(.primary)
+                    }
+                }
+            }
+            .disabled(isLoading)
+            .accessibilityLabel(isPlaying ? "Pause" : "Play")
 
-            Button {
-                viewModel.seekForward()
-            } label: {
-                Image(systemName: "goforward.15")
+            Button(action: onNext) {
+                Image(systemName: "forward.end.fill")
                     .font(.title)
                     .foregroundStyle(.primary)
             }
+            .disabled(!canPlayNextSong)
             .accessibilityLabel("Next song")
         }
     }
 
-    private var playPauseButton: some View {
-        Button {
-            viewModel.togglePlayPause()
-        } label: {
-            Group {
-                switch viewModel.playerState {
-                case .loading:
-                    ProgressView()
-                        .tint(.primary)
-                        .frame(width: 44, height: 44)
-                case .playing:
-                    Image(systemName: "pause.circle.fill")
-                        .font(.system(size: 64))
-                        .foregroundStyle(.primary)
-                default:
-                    Image(systemName: "play.circle.fill")
-                        .font(.system(size: 64))
-                        .foregroundStyle(.primary)
-                }
-            }
-        }
-        .accessibilityLabel(playPauseAccessibilityLabel)
-        .disabled({
-            if case .loading = viewModel.playerState { return true }
-            return false
-        }())
+    private var isLoading: Bool {
+        if case .loading = playerState { return true }
+        return false
     }
 
-    private var playPauseAccessibilityLabel: String {
-        if case .playing = viewModel.playerState { return "Pause" }
-        return "Play"
+    private var isPlaying: Bool {
+        if case .playing = playerState { return true }
+        return false
     }
+}
 
-    // MARK: - Error Banner
+private struct PlayerErrorBanner: View {
+    let error: AppError
+    let retry: () -> Void
 
-    private func errorBanner(_ error: AppError) -> some View {
+    var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.yellow)
@@ -248,38 +271,25 @@ private struct PlayerContentView: View {
                 .multilineTextAlignment(.leading)
             Spacer()
             if case .playbackFailure = error {
-                Button {
-                    viewModel.retry()
-                } label: {
-                    Text("Retry")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                }
+                Button("Retry", action: retry)
+                    .font(.caption.weight(.semibold))
             }
         }
         .padding(12)
-        .background(Color.secondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 10))
+        .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
     }
+}
 
-    // MARK: - More Options
+private struct PlayerPlaceholderView: View {
+    let cornerRadius: CGFloat
 
-    private var moreOptionsButton: some View {
-        Button {
-            viewModel.showMoreOptions = true
-        } label: {
-            Label("More options", systemImage: "ellipsis.circle")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .accessibilityLabel("More options")
-    }
-
-    // MARK: - Helpers
-
-    private func formattedTime(_ time: TimeInterval) -> String {
-        let total = max(0, Int(time))
-        let minutes = total / 60
-        let seconds = total % 60
-        return String(format: "%d:%02d", minutes, seconds)
+    var body: some View {
+        RoundedRectangle(cornerRadius: cornerRadius)
+            .redacted(reason: .placeholder)
+            .overlay(
+                Image(systemName: "music.note")
+                    .font(.system(size: 64))
+                    .foregroundStyle(.secondary)
+            )
     }
 }

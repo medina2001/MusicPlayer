@@ -9,60 +9,62 @@ import SwiftUI
 
 struct AlbumView: View {
     let collectionId: Int
+    let onSelectSong: (Song, [Song]) -> Void
 
-    @Environment(DependencyContainer.self) private var container
-    @State private var viewModel: AlbumsViewModel?
+    @State private var viewModel: AlbumsViewModel
+
+    init(
+        collectionId: Int,
+        container: DependencyContainer,
+        onSelectSong: @escaping (Song, [Song]) -> Void
+    ) {
+        self.collectionId = collectionId
+        self.onSelectSong = onSelectSong
+        _viewModel = State(initialValue: container.makeAlbumsViewModel())
+    }
 
     var body: some View {
-        Group {
-            if let viewModel {
-                AlbumContentView(viewModel: viewModel, collectionId: collectionId)
-            } else {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .onAppear {
-            if viewModel == nil {
-                viewModel = container.makeAlbumsViewModel()
-            }
-        }
+        AlbumContentView(
+            viewModel: viewModel,
+            collectionId: collectionId,
+            onSelectSong: onSelectSong
+        )
     }
 }
 
-// MARK: - Content View
-
 private struct AlbumContentView: View {
-    let viewModel: AlbumsViewModel
+    @Bindable var viewModel: AlbumsViewModel
+
     let collectionId: Int
+    let onSelectSong: (Song, [Song]) -> Void
 
     var body: some View {
         Group {
             switch viewModel.viewState {
-            case .loading:
+            case .idle, .loading:
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .loaded(let album):
                 if album.songs.isEmpty {
-                    emptyStateView(album: album)
+                    AlbumEmptyStateView(album: album)
                 } else {
                     albumDetailView(album: album)
                 }
             case .error(let error):
-                errorView(error)
+                AlbumErrorStateView(error: error) {
+                    Task { await viewModel.retryFetch(collectionId: collectionId) }
+                }
             }
         }
         .task {
-            await viewModel.fetchAlbum(collectionId: collectionId)
+            await viewModel.fetchAlbumIfNeeded(collectionId: collectionId)
         }
     }
-
-    // MARK: - Album Detail
 
     private func albumDetailView(album: Album) -> some View {
         List {
             Section {
-                albumHeader(album: album)
+                AlbumHeaderView(album: album)
             }
             .listRowSeparator(.hidden)
             .listRowInsets(.init())
@@ -70,20 +72,27 @@ private struct AlbumContentView: View {
 
             Section {
                 ForEach(Array(album.songs.enumerated()), id: \.element.id) { index, song in
-                    NavigationLink(value: song) {
+                    Button {
+                        onSelectSong(song, album.songs)
+                    } label: {
                         AlbumSongRow(trackNumber: index + 1, song: song)
                             .accessibilityLabel("Track \(index + 1), \(song.title) by \(song.artist)")
                     }
+                    .buttonStyle(.plain)
                     .listRowSeparator(.hidden)
                 }
             }
         }
         .listStyle(.plain)
     }
+}
 
-    private func albumHeader(album: Album) -> some View {
+private struct AlbumHeaderView: View {
+    let album: Album
+
+    var body: some View {
         VStack(spacing: 12) {
-            artworkImage(url: album.artworkURL, title: album.title)
+            AlbumArtworkView(artworkURL: album.artworkURL)
                 .frame(width: 200, height: 200)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .shadow(radius: 12)
@@ -102,20 +111,25 @@ private struct AlbumContentView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
     }
+}
 
-    @ViewBuilder
-    private func artworkImage(url: URL?, title: String) -> some View {
-        if let url {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image.resizable().scaledToFill()
-                default:
-                    placeholderArtwork
+private struct AlbumArtworkView: View {
+    let artworkURL: URL?
+
+    var body: some View {
+        Group {
+            if let artworkURL {
+                AsyncImage(url: artworkURL) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().scaledToFill()
+                    default:
+                        placeholderArtwork
+                    }
                 }
+            } else {
+                placeholderArtwork
             }
-        } else {
-            placeholderArtwork
         }
     }
 
@@ -128,55 +142,7 @@ private struct AlbumContentView: View {
                     .foregroundStyle(.secondary)
             )
     }
-
-    // MARK: - Empty State
-
-    private func emptyStateView(album: Album) -> some View {
-        VStack(spacing: 16) {
-            artworkImage(url: album.artworkURL, title: album.title)
-                .frame(width: 160, height: 160)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .shadow(radius: 8)
-                .accessibilityLabel(album.title)
-
-            ContentUnavailableView(
-                "No Tracks",
-                systemImage: "music.note.list",
-                description: Text("No songs found for this album.")
-            )
-        }
-    }
-
-    // MARK: - Error
-
-    private func errorView(_ error: AppError) -> some View {
-        VStack(spacing: 20) {
-            Spacer()
-            Image(systemName: "square.stack")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-            VStack(spacing: 8) {
-                Text("Couldn't Load Album")
-                    .font(.headline)
-                Text(error.localizedDescription)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            Button {
-                Task { await viewModel.retryFetch(collectionId: collectionId) }
-            } label: {
-                Label("Try Again", systemImage: "arrow.clockwise")
-            }
-            .buttonStyle(.borderedProminent)
-            Spacer()
-        }
-        .padding(.horizontal, 32)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
 }
-
-// MARK: - Album Song Row
 
 private struct AlbumSongRow: View {
     let trackNumber: Int
@@ -213,5 +179,54 @@ private struct AlbumSongRow: View {
         let minutes = total / 60
         let seconds = total % 60
         return String(format: "%d:%02d", minutes, seconds)
+    }
+}
+
+private struct AlbumEmptyStateView: View {
+    let album: Album
+
+    var body: some View {
+        VStack(spacing: 16) {
+            AlbumArtworkView(artworkURL: album.artworkURL)
+                .frame(width: 160, height: 160)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .shadow(radius: 8)
+                .accessibilityLabel(album.title)
+
+            ContentUnavailableView(
+                "No Tracks",
+                systemImage: "music.note.list",
+                description: Text("No songs found for this album.")
+            )
+        }
+    }
+}
+
+private struct AlbumErrorStateView: View {
+    let error: AppError
+    let retry: () -> Void
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            Image(systemName: "square.stack")
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+            VStack(spacing: 8) {
+                Text("Couldn't Load Album")
+                    .font(.headline)
+                Text(error.localizedDescription)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            Button(action: retry) {
+                Label("Try Again", systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(.borderedProminent)
+            Spacer()
+        }
+        .padding(.horizontal, 32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

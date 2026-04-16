@@ -15,10 +15,9 @@ struct MusicPlayerApp: App {
     var body: some Scene {
         WindowGroup {
             if let container {
-                NavigationStack {
-                    SongsView()
-                }
-                .environment(container)
+                AppRootView(container: container)
+            } else {
+                ProgressView()
             }
         }
         .modelContainer(for: RecentSongRecord.self) { result in
