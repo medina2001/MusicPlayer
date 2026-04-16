@@ -16,12 +16,14 @@ final class PlayerViewModel {
     private let playerContext: PlayerContext
 
     private(set) var currentSong: Song
+    var replayCurrentSong = false
 
     var playerState: PlayerState { player.state }
     var currentTime: TimeInterval { player.currentTime }
     var duration: TimeInterval { player.duration }
     var canPlayPreviousSong: Bool { playerContext.hasPreviousSong }
     var canPlayNextSong: Bool { playerContext.hasNextSong }
+    var albumTitle: String { currentSong.album }
 
     init(
         player: PlayerService,
@@ -69,6 +71,17 @@ final class PlayerViewModel {
 
     func retry() {
         Task { await loadAndPlay(song: currentSong) }
+    }
+
+    func toggleReplayCurrentSong() {
+        replayCurrentSong.toggle()
+    }
+
+    func handlePlayerStateChange() {
+        guard replayCurrentSong else { return }
+        guard case .finished = playerState else { return }
+        player.seek(to: 0)
+        player.play()
     }
 
     private func loadAndPlay(song: Song) async {

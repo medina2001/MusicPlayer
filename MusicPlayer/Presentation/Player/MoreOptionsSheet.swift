@@ -14,32 +14,31 @@ struct MoreOptionsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 24) {
-                MoreOptionsSongInfoSection(song: song)
-                Divider()
-                MoreOptionsActionButton(
-                    title: "View Album",
-                    systemImage: "square.stack",
-                    action: handleViewAlbum
-                )
-                Spacer()
-            }
-            .padding(24)
-            .navigationTitle("More Options")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
+        VStack(spacing: 20) {
+            Capsule()
+                .fill(Color.secondary.opacity(0.35))
+                .frame(width: 36, height: 5)
+                .padding(.top, 10)
+
+            MoreOptionsSongInfoSection(song: song)
+
+            MoreOptionsActionButton(
+                title: "View album",
+                systemImage: "music.note",
+                action: handleViewAlbum
+            )
+            .padding(.bottom, 12)
         }
-        .presentationDetents([.medium])
+        .padding(.horizontal, 24)
+        .presentationDetents([.height(170)])
+        .presentationDragIndicator(.hidden)
     }
 
     private func handleViewAlbum() {
         dismiss()
-        onViewAlbum()
+        DispatchQueue.main.async {
+            onViewAlbum()
+        }
     }
 }
 
@@ -47,20 +46,16 @@ private struct MoreOptionsSongInfoSection: View {
     let song: Song
 
     var body: some View {
-        HStack(spacing: 16) {
-            ArtworkImage(artworkURL: song.artworkURL)
-                .frame(width: 56, height: 56)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(song.title)
-                    .font(.headline)
-                    .lineLimit(2)
-                Text(song.artist)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            Spacer()
+        VStack(spacing: 6) {
+            Text(song.title)
+                .font(.headline)
+                .lineLimit(1)
+            Text(song.artist)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -75,13 +70,12 @@ private struct MoreOptionsActionButton: View {
                 Image(systemName: systemImage)
                 Text(title)
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .foregroundStyle(.secondary)
             }
             .font(.body)
             .foregroundStyle(.primary)
-            .padding(16)
-            .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
         }
         .accessibilityLabel(title)
     }

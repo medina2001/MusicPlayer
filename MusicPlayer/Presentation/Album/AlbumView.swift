@@ -62,28 +62,26 @@ private struct AlbumContentView: View {
     }
 
     private func albumDetailView(album: Album) -> some View {
-        List {
-            Section {
+        ScrollView {
+            VStack(spacing: 28) {
                 AlbumHeaderView(album: album)
-            }
-            .listRowSeparator(.hidden)
-            .listRowInsets(.init())
-            .listRowBackground(Color.clear)
 
-            Section {
-                ForEach(Array(album.songs.enumerated()), id: \.element.id) { index, song in
-                    Button {
-                        onSelectSong(song, album.songs)
-                    } label: {
-                        AlbumSongRow(trackNumber: index + 1, song: song)
-                            .accessibilityLabel("Track \(index + 1), \(song.title) by \(song.artist)")
+                LazyVStack(spacing: 20) {
+                    ForEach(album.songs, id: \.id) { song in
+                        Button {
+                            onSelectSong(song, album.songs)
+                        } label: {
+                            AlbumSongRow(song: song)
+                                .accessibilityLabel("\(song.title) by \(song.artist)")
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
-                    .listRowSeparator(.hidden)
                 }
             }
+            .padding(.horizontal, 24)
+            .padding(.top, 24)
+            .padding(.bottom, 32)
         }
-        .listStyle(.plain)
     }
 }
 
@@ -95,7 +93,6 @@ private struct AlbumHeaderView: View {
             AlbumArtworkView(artworkURL: album.artworkURL)
                 .frame(width: 120, height: 120)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
-                .shadow(radius: 12)
                 .accessibilityLabel(album.title)
 
             VStack(spacing: 4) {
@@ -105,7 +102,7 @@ private struct AlbumHeaderView: View {
                     .multilineTextAlignment(.center)
                 Text(album.artist)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.primary)
             }
         }
         .frame(maxWidth: .infinity)
@@ -145,19 +142,17 @@ private struct AlbumArtworkView: View {
 }
 
 private struct AlbumSongRow: View {
-    let trackNumber: Int
     let song: Song
 
     var body: some View {
-        HStack(spacing: 12) {
-            Text("\(trackNumber)")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .frame(width: 24, alignment: .trailing)
+        HStack(spacing: 14) {
+            AlbumArtworkView(artworkURL: song.artworkURL)
+                .frame(width: 40, height: 40)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(song.title)
-                    .font(.headline)
+                    .font(.body)
                     .lineLimit(1)
                 Text(song.artist)
                     .font(.subheadline)
@@ -166,19 +161,8 @@ private struct AlbumSongRow: View {
             }
 
             Spacer()
-
-            Text(formattedDuration)
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
         .padding(.vertical, 2)
-    }
-
-    private var formattedDuration: String {
-        let total = max(0, Int(song.duration))
-        let minutes = total / 60
-        let seconds = total % 60
-        return String(format: "%d:%02d", minutes, seconds)
     }
 }
 

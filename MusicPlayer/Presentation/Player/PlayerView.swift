@@ -43,7 +43,12 @@ struct PlayerView: View {
         .task(id: playerContext.currentSong.id) {
             await viewModel.playCurrentSong()
         }
+        .onChange(of: viewModel.playerState) {
+            viewModel.handlePlayerStateChange()
+        }
         .onDisappear(perform: viewModel.onDisappear)
+        .navigationTitle(viewModel.albumTitle)
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func presentAlbum() {
@@ -62,10 +67,12 @@ private struct PlayerContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             PlayerArtworkSection(song: viewModel.currentSong)
-                .padding(.top, 24)
+                .padding(.top, 112)
 
-            PlayerInfoSection(song: viewModel.currentSong)
-                .padding(.top, 32)
+            Spacer()
+            
+            PlayerInfoSection(viewModel: viewModel)
+                .padding(.top, 44)
                 .padding(.horizontal, 24)
 
             PlayerSeekSection(
@@ -85,7 +92,7 @@ private struct PlayerContentView: View {
                 onPlayPause: viewModel.togglePlayPause,
                 onNext: viewModel.playNextSong
             )
-            .padding(.top, 24)
+            .padding(.top, 28)
             .padding(.horizontal, 24)
 
             if case .error(let error) = viewModel.playerState {
@@ -97,7 +104,6 @@ private struct PlayerContentView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(LinearGradient.appBackground.ignoresSafeArea())
         .sheet(isPresented: $isShowingMoreOptions) {
             MoreOptionsSheet(song: viewModel.currentSong, onViewAlbum: onViewAlbum)
         }
@@ -113,7 +119,6 @@ private struct PlayerContentView: View {
                 .accessibilityLabel("More options")
             }
         }
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -143,22 +148,33 @@ private struct PlayerArtworkSection: View {
 }
 
 private struct PlayerInfoSection: View {
-    let song: Song
+    @Bindable var viewModel: PlayerViewModel
 
     var body: some View {
-        HStack {
+        VStack(alignment: .leading, spacing: 8) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(song.title)
-                    .font(.title2)
-                    .fontWeight(.bold)
+                Text(viewModel.currentSong.title)
+                    .font(.system(size: 26, weight: .bold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
-                Text(song.artist)
+            }
+
+            HStack(spacing: 12) {
+                Text(viewModel.currentSong.artist)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+
+                Spacer()
+
+                Button(action: viewModel.toggleReplayCurrentSong) {
+                    Image(systemName: "repeat")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(viewModel.replayCurrentSong ? .primary : .secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(viewModel.replayCurrentSong ? "Disable replay" : "Enable replay")
             }
-            Spacer()
         }
     }
 }
@@ -170,21 +186,13 @@ private struct PlayerSeekSection: View {
     let onSeek: (TimeInterval) -> Void
 
     var body: some View {
-        VStack(spacing: 4) {
-            Slider(
-                value: Binding(
-                    get: { duration > 0 ? currentTime / duration : 0 },
-                    set: { newValue in
-                        if isEditingSlider {
-                            onSeek(newValue * duration)
-                        }
-                    }
-                ),
-                in: 0...1,
-                onEditingChanged: { editing in
-                    isEditingSlider = editing
-                }
-            )
+        VStack(spacing: 8) {
+            PlayerProgressBar(
+                progress: duration > 0 ? currentTime / duration : 0,
+                isEditing: $isEditingSlider
+            ) { progress in
+                onSeek(progress * duration)
+            }
             .accessibilityLabel("Seek")
             .accessibilityValue("\(formattedTime(currentTime)) of \(formattedTime(duration))")
 
@@ -218,43 +226,62 @@ private struct PlayerControlsSection: View {
     let onNext: () -> Void
 
     var body: some View {
-        HStack(spacing: 40) {
+        HStack(spacing: 36) {
             Button(action: onPrevious) {
-                Image(systemName: "backward.end.fill")
-                    .font(.title)
+                Image(systemName: "backward.fill")
+                    .font(.title2)
                     .foregroundStyle(.primary)
             }
             .disabled(!canPlayPreviousSong)
             .accessibilityLabel("Previous song")
 
-            Button(action: onPlayPause) {
-                Group {
-                    switch playerState {
-                    case .loading:
-                        ProgressView()
-                            .tint(.primary)
-                            .frame(width: 44, height: 44)
-                    case .playing:
-                        Image(systemName: "pause.circle.fill")
-                            .font(.system(size: 64))
-                            .foregroundStyle(.primary)
-                    default:
-                        Image(systemName: "play.circle.fill")
-                            .font(.system(size: 64))
-                            .foregroundStyle(.primary)
-                    }
-                }
-            }
+            playPauseButton
             .disabled(isLoading)
             .accessibilityLabel(isPlaying ? "Pause" : "Play")
 
             Button(action: onNext) {
-                Image(systemName: "forward.end.fill")
-                    .font(.title)
+                Image(systemName: "forward.fill")
+                    .font(.title2)
                     .foregroundStyle(.primary)
             }
             .disabled(!canPlayNextSong)
             .accessibilityLabel("Next song")
+        }
+    }
+
+    @ViewBuilder
+    private var playPauseButton: some View {
+        if #available(iOS 26, *) {
+            Button(action: onPlayPause) {
+                playPauseContent
+                    .frame(width: 56, height: 56)
+            }
+            .buttonStyle(.glassProminent)
+        } else {
+            Button(action: onPlayPause) {
+                playPauseContent
+                    .frame(width: 56, height: 56)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder
+    private var playPauseContent: some View {
+        switch playerState {
+        case .loading:
+            ProgressView()
+                .tint(.primary)
+        case .playing:
+            Image(systemName: "pause.fill")
+                .font(.title2)
+                .foregroundStyle(.primary)
+        default:
+            Image(systemName: "play.fill")
+                .font(.title2)
+                .foregroundStyle(.primary)
+                .padding(.leading, 2)
         }
     }
 
@@ -303,5 +330,51 @@ private struct PlayerPlaceholderView: View {
                     .font(.system(size: 64))
                     .foregroundStyle(.secondary)
             )
+    }
+}
+
+private struct PlayerProgressBar: View {
+    let progress: Double
+    @Binding var isEditing: Bool
+    let onSeek: (Double) -> Void
+
+    var body: some View {
+        GeometryReader { proxy in
+            let clampedProgress = min(max(progress, 0), 1)
+            let width = proxy.size.width
+            let thumbOffset = max(0, min(width, width * clampedProgress))
+
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.secondary.opacity(0.25))
+                    .frame(height: 4)
+
+                Capsule()
+                    .fill(Color.primary)
+                    .frame(width: thumbOffset, height: 4)
+
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: 18, height: 18)
+                    .shadow(color: .black.opacity(0.12), radius: 3, y: 1)
+                    .offset(x: max(0, thumbOffset - 9))
+            }
+            .frame(height: 18)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        isEditing = true
+                        let nextProgress = value.location.x / max(width, 1)
+                        onSeek(min(max(nextProgress, 0), 1))
+                    }
+                    .onEnded { value in
+                        let nextProgress = value.location.x / max(width, 1)
+                        onSeek(min(max(nextProgress, 0), 1))
+                        isEditing = false
+                    }
+            )
+        }
+        .frame(height: 18)
     }
 }

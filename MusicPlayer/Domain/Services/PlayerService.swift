@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum PlayerState {
+enum PlayerState: Equatable {
     case idle
     case loading
     case playing

@@ -64,7 +64,7 @@ extension iTunesLookupResponse {
             id: albumId,
             title: albumTitle,
             artist: albumArtist,
-            artworkURL: collectionItem.artworkUrl100.flatMap(URL.init),
+            artworkURL: URL(string: collectionItem.upscaleArtworkURL(collectionItem.artworkUrl100)),
             songs: songs
         )
     }
