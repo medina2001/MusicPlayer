@@ -93,7 +93,7 @@ private struct AlbumHeaderView: View {
     var body: some View {
         VStack(spacing: 12) {
             AlbumArtworkView(artworkURL: album.artworkURL)
-                .frame(width: 200, height: 200)
+                .frame(width: 120, height: 120)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .shadow(radius: 12)
                 .accessibilityLabel(album.title)

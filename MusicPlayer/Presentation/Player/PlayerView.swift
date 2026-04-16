@@ -8,13 +8,16 @@
 import SwiftUI
 
 struct PlayerView: View {
+    let container: DependencyContainer
     let router: AppRouter
     let playerContext: PlayerContext
 
     @State private var viewModel: PlayerViewModel
     @State private var isShowingMoreOptions = false
+    @State private var albumRoute: AlbumRoute?
 
     init(container: DependencyContainer, router: AppRouter, playerContext: PlayerContext) {
+        self.container = container
         self.router = router
         self.playerContext = playerContext
         _viewModel = State(
@@ -28,6 +31,15 @@ struct PlayerView: View {
             isShowingMoreOptions: $isShowingMoreOptions,
             onViewAlbum: presentAlbum
         )
+        .navigationDestination(item: $albumRoute) { route in
+            AlbumView(
+                collectionId: route.collectionId,
+                container: container
+            ) { song, queue in
+                router.presentPlayer(song: song, queue: queue)
+                albumRoute = nil
+            }
+        }
         .task(id: playerContext.currentSong.id) {
             await viewModel.playCurrentSong()
         }
@@ -35,7 +47,7 @@ struct PlayerView: View {
     }
 
     private func presentAlbum() {
-        router.presentAlbum(for: viewModel.currentSong)
+        albumRoute = AlbumRoute(collectionId: viewModel.currentSong.collectionId)
     }
 }
 

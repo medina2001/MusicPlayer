@@ -8,7 +8,7 @@
 import Foundation
 import Observation
 
-struct AlbumSheetRoute: Identifiable, Equatable {
+struct AlbumRoute: Identifiable, Equatable, Hashable {
     let collectionId: Int
 
     var id: Int { collectionId }
@@ -18,7 +18,7 @@ struct AlbumSheetRoute: Identifiable, Equatable {
 @MainActor
 final class AppRouter {
     var playerContext: PlayerContext?
-    var albumSheet: AlbumSheetRoute?
+    var albumRoute: AlbumRoute?
 
     func presentPlayer(song: Song, queue: [Song]) {
         if let playerContext {
@@ -30,14 +30,14 @@ final class AppRouter {
 
     func dismissPlayer() {
         playerContext = nil
-        albumSheet = nil
+        albumRoute = nil
     }
 
     func presentAlbum(for song: Song) {
-        albumSheet = AlbumSheetRoute(collectionId: song.collectionId)
+        albumRoute = AlbumRoute(collectionId: song.collectionId)
     }
 
     func dismissAlbum() {
-        albumSheet = nil
+        albumRoute = nil
     }
 }

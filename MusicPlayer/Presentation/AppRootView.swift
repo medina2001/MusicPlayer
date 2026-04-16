@@ -31,24 +31,24 @@ struct AppRootView: View {
                         playerContext: playerContext
                     )
                 }
-        }
-        .sheet(
-            item: Binding(
-                get: { router.albumSheet },
-                set: { newValue in
-                    if newValue == nil {
+                .navigationDestination(
+                    item: Binding(
+                        get: { router.albumRoute },
+                        set: { newValue in
+                            if newValue == nil {
+                                router.dismissAlbum()
+                            }
+                        }
+                    )
+                ) { route in
+                    AlbumView(
+                        collectionId: route.collectionId,
+                        container: container
+                    ) { song, queue in
+                        router.presentPlayer(song: song, queue: queue)
                         router.dismissAlbum()
                     }
                 }
-            )
-        ) { route in
-            AlbumView(
-                collectionId: route.collectionId,
-                container: container
-            ) { song, queue in
-                router.presentPlayer(song: song, queue: queue)
-                router.dismissAlbum()
-            }
         }
         .environment(container)
         .environment(router)

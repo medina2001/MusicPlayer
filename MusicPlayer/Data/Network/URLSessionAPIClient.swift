@@ -33,6 +33,10 @@ final class URLSessionAPIClient: APIClient {
             }
         } catch let error as AppError {
             throw error
+        } catch is CancellationError {
+            throw AppError.requestCancelled
+        } catch let error as URLError where error.code == .cancelled {
+            throw AppError.requestCancelled
         } catch {
             throw AppError.networkUnavailable
         }
