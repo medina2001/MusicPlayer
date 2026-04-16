@@ -15,7 +15,7 @@ enum AppError: LocalizedError {
     case playbackFailure
     case noSongsFound
     case requestCancelled
-    case requestSuperseded
+    case unknownError
 
     var errorDescription: String? {
         switch self {
@@ -33,8 +33,8 @@ enum AppError: LocalizedError {
             return "No songs found. Please try again."
         case .requestCancelled:
             return "The request was cancelled."
-        case .requestSuperseded:
-            return "A newer request replaced this one."
+        case .unknownError:
+            return "Something went wrong. Try again later."
         }
     }
 }

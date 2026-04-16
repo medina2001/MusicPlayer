@@ -39,7 +39,7 @@ private struct AlbumContentView: View {
     var body: some View {
         Group {
             switch viewModel.viewState {
-            case .idle, .loading:
+            case .loading:
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .loaded(let album):
