@@ -3,7 +3,12 @@
 iOS app that lets users search for songs using the iTunes Search API, play previews, and browse album details.
 
 ---
+## Demonstration
+| Songs | Player | More Options | Album |
+| --- | --- | --- | --- |
+| <img width="1206" height="2622" alt="Simulator Screenshot - iPhone 17 - 2026-04-16 at 11 56 22" src="https://github.com/user-attachments/assets/c92e1810-ff0d-4bfb-b247-120f97372426" /> | <img width="1206" height="2622" alt="Simulator Screenshot - iPhone 17 - 2026-04-16 at 11 56 28" src="https://github.com/user-attachments/assets/55ab88da-3723-479e-82ff-5c2f6e57cf3e" /> | <img width="1206" height="2622" alt="Simulator Screenshot - iPhone 17 - 2026-04-16 at 11 56 34" src="https://github.com/user-attachments/assets/98d5620c-8cfb-4f15-b62e-b7c2545ccea2" /> | <img width="1206" height="2622" alt="Simulator Screenshot - iPhone 17 - 2026-04-16 at 11 56 39" src="https://github.com/user-attachments/assets/6b308e03-e910-4e17-9268-0bd8f2ee526a" /> |
 
+---
 ## Features
 
 - Song search via iTunes API
