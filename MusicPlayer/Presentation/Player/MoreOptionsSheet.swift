@@ -9,9 +9,9 @@ import SwiftUI
 
 struct MoreOptionsSheet: View {
     let song: Song
+    let onViewAlbum: () -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var navigateToAlbum = false
 
     var body: some View {
         NavigationStack {
@@ -31,10 +31,6 @@ struct MoreOptionsSheet: View {
             }
         }
         .presentationDetents([.medium])
-        .navigationDestination(isPresented: $navigateToAlbum) {
-            // AlbumView will be implemented in task 14
-            Text("Album \(song.collectionId)")
-        }
     }
 
     // MARK: - Song Info
@@ -88,8 +84,7 @@ struct MoreOptionsSheet: View {
     private var viewAlbumButton: some View {
         Button {
             dismiss()
-            // Navigation to AlbumView is handled by the parent NavigationStack
-            // via a NavigationLink or programmatic push in task 14
+            onViewAlbum()
         } label: {
             HStack {
                 Image(systemName: "square.stack")

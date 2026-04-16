@@ -6,6 +6,7 @@
 //
 
 import Observation
+import Foundation
 
 @Observable
 @MainActor
@@ -28,17 +29,32 @@ final class SongsViewModel {
     }
 
     func search(term: String) async {
-        currentTerm = term
+        currentTerm = term.trimmingCharacters(in: .whitespacesAndNewlines)
+        if currentTerm.isEmpty { return }
+
         currentOffset = 0
         paginationExhausted = false
         viewState = .loading
+
         do {
-            let songs = try await songsRepository.fetchSongs(term: term, limit: pageSize, offset: 0)
-            if songs.count < pageSize { paginationExhausted = true }
+            let songs = try await songsRepository.fetchSongs(term: currentTerm, limit: pageSize, offset: 0)
+
+            if Task.isCancelled { return }
+
+            paginationExhausted = songs.count < pageSize
             viewState = .loaded(songs)
         } catch let error as AppError {
-            viewState = .error(error)
+            if Task.isCancelled { return }
+            switch error {
+            case .requestCancelled:
+                return
+            default:
+                viewState = .error(error)
+            }
+        } catch is CancellationError {
+            return
         } catch {
+            if Task.isCancelled { return }
             viewState = .error(.networkUnavailable)
         }
     }
@@ -49,13 +65,22 @@ final class SongsViewModel {
         guard case .loaded(let songs) = viewState else { return }
         isLoadingPage = true
         defer { isLoadingPage = false }
+
+        let nextOffset = currentOffset + pageSize
+
         do {
-            let newSongs = try await songsRepository.fetchSongs(term: currentTerm, limit: pageSize, offset: currentOffset + pageSize)
-            currentOffset += pageSize
+            let newSongs = try await songsRepository.fetchSongs(term: currentTerm, limit: pageSize, offset: nextOffset)
+
+            if Task.isCancelled { return }
+
+            currentOffset = nextOffset
             if newSongs.count < pageSize { paginationExhausted = true }
             viewState = .loaded(songs + newSongs)
+        } catch is CancellationError {
+            // AppError.requestCancelled – ignore for pagination
+            return
         } catch {
-            // Don't overwrite the loaded state on pagination error — just stop loading
+            // Keep existing loaded state on pagination failure
         }
     }
 
@@ -65,11 +90,19 @@ final class SongsViewModel {
         await search(term: currentTerm)
     }
 
+    func resetSearchState() {
+        currentTerm = ""
+        currentOffset = 0
+        paginationExhausted = false
+        viewState = .idle
+    }
+
     func loadRecentSongs() async {
         do {
             recentSongs = try await recentSongsRepository.fetchRecentSongs()
         } catch {
-            // Silently fail — recent songs are non-critical
+            print("Could not load recent songs. \(#function) in \(#file)")
         }
     }
 }
+

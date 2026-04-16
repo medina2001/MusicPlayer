@@ -13,4 +13,8 @@ struct Album: Identifiable, Equatable {
     let artist: String
     let artworkURL: URL?
     let songs: [Song]
+    
+    static func == (lhs: Album, rhs: Album) -> Bool {
+        return lhs.id == rhs.id
+    }
 }

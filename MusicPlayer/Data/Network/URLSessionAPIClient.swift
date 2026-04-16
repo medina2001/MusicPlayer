@@ -24,7 +24,7 @@ final class URLSessionAPIClient: APIClient {
                 throw AppError.networkUnavailable
             }
             guard (200...299).contains(http.statusCode) else {
-                throw AppError.httpError(statusCode: http.statusCode)
+                throw AppError.httpError
             }
             do {
                 return try decoder.decode(T.self, from: data)

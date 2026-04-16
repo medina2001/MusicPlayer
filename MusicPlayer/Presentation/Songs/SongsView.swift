@@ -25,6 +25,9 @@ struct SongsView: View {
                 ProgressView()
             }
         }
+        .navigationDestination(for: Song.self) { song in
+            PlayerView(song: song)
+        }
         .onAppear {
             if viewModel == nil {
                 viewModel = container.makeSongsViewModel()
@@ -39,32 +42,66 @@ private struct SongsContentView: View {
     let viewModel: SongsViewModel
     @Binding var searchText: String
     @Binding var searchTask: Task<Void, Never>?
+    @State private var isSearching = false
+    @State private var lastSearchedTerm: String = ""
 
     var body: some View {
         mainContent
-            .searchable(text: $searchText, prompt: "Search songs")
-            .accessibilityLabel("Search songs")
-            .onChange(of: searchText) { _, newValue in
+            .searchable(
+                text: $searchText,
+                placement: .navigationBarDrawer,
+                prompt: "Search"
+            )
+            .searchToolbarBehavior(.minimize)
+            .accessibilityLabel("Search Songs")
+            .task(id: searchText) {
                 searchTask?.cancel()
-                if newValue.isEmpty {
-                    searchTask = Task {
-                        await viewModel.loadRecentSongs()
-                    }
-                } else {
-                    searchTask = Task {
-                        try? await Task.sleep(nanoseconds: 300_000_000)
-                        guard !Task.isCancelled else { return }
-                        await viewModel.search(term: newValue)
-                    }
+
+                let term = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                if term.isEmpty {
+                    isSearching = false
+                    lastSearchedTerm = ""
+                    viewModel.resetSearchState()
+                    searchTask = Task { await viewModel.loadRecentSongs() }
+                    return
                 }
+
+                isSearching = true
+
+                if term == lastSearchedTerm { return }
+
+                do {
+                    try await Task.sleep(nanoseconds: 500_000_000)
+                } catch {
+                    isSearching = false
+                    return
+                }
+
+                if Task.isCancelled { return }
+
+                let currentTerm = term
+                lastSearchedTerm = currentTerm
+
+                searchTask = Task { [currentTerm] in
+                    await viewModel.search(term: currentTerm)
+                }
+
+                await searchTask?.value
+                isSearching = false
             }
             .refreshable {
                 await viewModel.refresh()
             }
             .navigationTitle("Songs")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.automatic)
             .onAppear {
-                Task { await viewModel.loadRecentSongs() }
+                isSearching = false
+                if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    lastSearchedTerm = ""
+                    viewModel.resetSearchState()
+                    Task { await viewModel.loadRecentSongs() }
+                }
             }
     }
 
@@ -72,18 +109,31 @@ private struct SongsContentView: View {
     private var mainContent: some View {
         switch viewModel.viewState {
         case .idle:
-            recentSongsList
+            if isSearching {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                recentSongsList
+            }
         case .loading:
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .loaded(let songs):
-            if songs.isEmpty {
+            if isSearching {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if songs.isEmpty {
                 emptyStateView
             } else {
                 songsList(songs)
             }
         case .error(let error):
-            errorView(error)
+            if isSearching {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                errorView(error)
+            }
         }
     }
 
@@ -96,15 +146,18 @@ private struct SongsContentView: View {
                     description: Text("Search for songs to get started.")
                 )
             } else {
-                List(viewModel.recentSongs) { song in
-                    NavigationLink(value: song) {
-                        SongRow(song: song)
-                    }
-                    .accessibilityLabel("\(song.title) by \(song.artist)")
+                List(viewModel.recentSongs, id: \.id) { song in
+                    SongRow(song: song)
+                        .background {
+                            NavigationLink(value: song) {
+                                EmptyView()
+                            }
+                        }
+                        .listRowSeparator(.hidden)
+                        .accessibilityLabel("\(song.title) by \(song.artist)")
+                    
                 }
-                .navigationDestination(for: Song.self) { song in
-                    PlayerView(song: song)
-                }
+                .listStyle(.plain)
             }
         }
     }
@@ -119,16 +172,22 @@ private struct SongsContentView: View {
 
     private func songsList(_ songs: [Song]) -> some View {
         List {
-            ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
-                NavigationLink(value: song) {
-                    SongRow(song: song)
-                        .accessibilityLabel("\(song.title) by \(song.artist)")
-                }
-                .onAppear {
-                    if index >= songs.count - 5 && !viewModel.paginationExhausted {
-                        Task { await viewModel.loadNextPage() }
+            ForEach(Array(songs.enumerated()), id: \.offset) { index, song in
+                
+                SongRow(song: song)
+                    .background {
+                        NavigationLink(value: song) {
+                            EmptyView()
+                        }
                     }
-                }
+                    .accessibilityLabel("\(song.title) by \(song.artist)")
+                
+                    .listRowSeparator(.hidden)
+                    .onAppear {
+                        if index >= songs.count - 5 && !viewModel.paginationExhausted {
+                            Task { await viewModel.loadNextPage() }
+                        }
+                    }
             }
             if viewModel.isLoadingPage {
                 HStack {
@@ -139,25 +198,38 @@ private struct SongsContentView: View {
                 .listRowSeparator(.hidden)
             }
         }
-        .navigationDestination(for: Song.self) { song in
-            PlayerView(song: song)
-        }
+        .listStyle(.plain)
     }
 
     private func errorView(_ error: AppError) -> some View {
-        VStack(spacing: 16) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.largeTitle)
+        VStack(spacing: 20) {
+            Spacer()
+            Image(systemName: searchText.isEmpty ? "clock.arrow.circlepath" : "magnifyingglass")
+                .font(.system(size: 48))
                 .foregroundStyle(.secondary)
-            Text(error.localizedDescription)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-            Button("Retry") {
-                Task { await viewModel.search(term: searchText) }
+            VStack(spacing: 8) {
+                Text("Couldn't Load Songs")
+                    .font(.headline)
+                Text(error.localizedDescription)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            Button {
+                Task {
+                    if searchText.isEmpty {
+                        await viewModel.loadRecentSongs()
+                    } else {
+                        await viewModel.search(term: searchText)
+                    }
+                }
+            } label: {
+                Label("Try Again", systemImage: "arrow.clockwise")
             }
             .buttonStyle(.borderedProminent)
+            Spacer()
         }
-        .padding()
+        .padding(.horizontal, 32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
@@ -168,9 +240,9 @@ struct SongRow: View {
     let song: Song
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 16) {
             artworkImage
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(song.title)
                     .font(.headline)
                     .lineLimit(1)
@@ -179,10 +251,16 @@ struct SongRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
+            
             Spacer()
-            Text(formattedDuration)
-                .font(.caption)
+            
+            Image(systemName: "ellipsis")
                 .foregroundStyle(.secondary)
+                .frame(width: 12, height: 12)
+                .onTapGesture {
+                    // TODO: Display Action Sheet (Album)
+                    print("Should display Action Sheet")
+                }
         }
     }
 
@@ -201,23 +279,17 @@ struct SongRow: View {
                 placeholderArtwork
             }
         }
-        .frame(width: 48, height: 48)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .frame(width: 52, height: 52)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
     private var placeholderArtwork: some View {
-        RoundedRectangle(cornerRadius: 6)
-            .fill(Color.secondary.opacity(0.2))
+        RoundedRectangle(cornerRadius: 8)
+            .redacted(reason: .placeholder)
             .overlay(
                 Image(systemName: "music.note")
                     .foregroundStyle(.secondary)
             )
     }
-
-    private var formattedDuration: String {
-        let total = Int(song.duration)
-        let minutes = total / 60
-        let seconds = total % 60
-        return String(format: "%d:%02d", minutes, seconds)
-    }
 }
+

@@ -11,21 +11,14 @@ import SwiftData
 @main
 struct MusicPlayerApp: App {
     @State private var container: DependencyContainer?
-    @State private var isReady = false
 
     var body: some Scene {
         WindowGroup {
             if let container {
                 NavigationStack {
-                    if isReady {
-                        SongsView()
-                    } else {
-                        SplashView(onReady: { isReady = true })
-                    }
+                    SongsView()
                 }
                 .environment(container)
-            } else {
-                ProgressView()
             }
         }
         .modelContainer(for: RecentSongRecord.self) { result in

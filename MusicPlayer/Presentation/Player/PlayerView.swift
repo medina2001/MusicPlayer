@@ -12,16 +12,23 @@ struct PlayerView: View {
 
     @Environment(DependencyContainer.self) private var container
     @State private var viewModel: PlayerViewModel?
+    @State private var navigateToAlbum = false
 
     var body: some View {
         Group {
             if let viewModel {
-                PlayerContentView(viewModel: viewModel)
+                PlayerContentView(
+                    viewModel: viewModel,
+                    navigateToAlbum: $navigateToAlbum
+                )
             } else {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(LinearGradient.appBackground.ignoresSafeArea())
             }
+        }
+        .navigationDestination(isPresented: $navigateToAlbum) {
+            AlbumView(collectionId: song.collectionId)
         }
         .onAppear {
             if viewModel == nil {
@@ -42,44 +49,44 @@ struct PlayerView: View {
 
 private struct PlayerContentView: View {
     let viewModel: PlayerViewModel
+    @Binding var navigateToAlbum: Bool
     @State private var isEditingSlider = false
 
     var body: some View {
-        ZStack {
-            LinearGradient.appBackground
-                .ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                artworkSection
-                    .padding(.top, 24)
-
-                infoSection
-                    .padding(.top, 32)
+        VStack(spacing: 0) {
+            artworkSection
+                .padding(.top, 24)
+            
+            infoSection
+                .padding(.top, 32)
+                .padding(.horizontal, 24)
+            
+            seekSection
+                .padding(.top, 24)
+                .padding(.horizontal, 24)
+            
+            controlsSection
+                .padding(.top, 24)
+                .padding(.horizontal, 24)
+            
+            if case .error(let error) = viewModel.playerState {
+                errorBanner(error)
+                    .padding(.top, 16)
                     .padding(.horizontal, 24)
-
-                seekSection
-                    .padding(.top, 24)
-                    .padding(.horizontal, 24)
-
-                controlsSection
-                    .padding(.top, 24)
-                    .padding(.horizontal, 24)
-
-                if case .error(let error) = viewModel.playerState {
-                    errorBanner(error)
-                        .padding(.top, 16)
-                        .padding(.horizontal, 24)
-                }
-
-                Spacer()
-
-                moreOptionsButton
-                    .padding(.bottom, 32)
             }
+            
+            Spacer()
         }
         .sheet(isPresented: Bindable(viewModel).showMoreOptions) {
             if let song = viewModel.song {
-                MoreOptionsSheet(song: song)
+                MoreOptionsSheet(song: song) {
+                    navigateToAlbum = true
+                }
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                moreOptionsButton
             }
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -104,14 +111,13 @@ private struct PlayerContentView: View {
                 placeholderArtwork
             }
         }
-        .frame(width: 280, height: 280)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(radius: 20)
+        .frame(width: 264, height: 264)
+        .clipShape(RoundedRectangle(cornerRadius: 32))
     }
 
     private var placeholderArtwork: some View {
-        RoundedRectangle(cornerRadius: 16)
-            .fill(Color.secondary.opacity(0.2))
+        RoundedRectangle(cornerRadius: 32)
+            .redacted(reason: .placeholder)
             .overlay(
                 Image(systemName: "music.note")
                     .font(.system(size: 64))
@@ -154,9 +160,6 @@ private struct PlayerContentView: View {
                 in: 0...1,
                 onEditingChanged: { editing in
                     isEditingSlider = editing
-                    if !editing {
-                        // final seek already applied via set closure above
-                    }
                 }
             )
             .accessibilityLabel("Seek")
@@ -185,7 +188,7 @@ private struct PlayerContentView: View {
                     .font(.title)
                     .foregroundStyle(.primary)
             }
-            .accessibilityLabel("Seek backward 15 seconds")
+            .accessibilityLabel("Previous song")
 
             playPauseButton
 
@@ -196,7 +199,7 @@ private struct PlayerContentView: View {
                     .font(.title)
                     .foregroundStyle(.primary)
             }
-            .accessibilityLabel("Seek forward 15 seconds")
+            .accessibilityLabel("Next song")
         }
     }
 
@@ -236,13 +239,23 @@ private struct PlayerContentView: View {
     // MARK: - Error Banner
 
     private func errorBanner(_ error: AppError) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.yellow)
             Text(error.localizedDescription)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.leading)
+            Spacer()
+            if case .playbackFailure = error {
+                Button {
+                    viewModel.retry()
+                } label: {
+                    Text("Retry")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                }
+            }
         }
         .padding(12)
         .background(Color.secondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 10))

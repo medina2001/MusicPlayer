@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct Song: Identifiable, Equatable, Hashable {
+struct Song: Identifiable, Equatable, Hashable {    
     let id: Int
     let title: String
     let artist: String
@@ -16,4 +16,8 @@ struct Song: Identifiable, Equatable, Hashable {
     let previewURL: URL?
     let duration: TimeInterval
     let collectionId: Int
+    
+    static func == (lhs: Song, rhs: Song) -> Bool {
+        return lhs.id == rhs.id
+    }
 }

@@ -1,5 +1,5 @@
 //
-//  AppGradient.swift
+//  AppColors.swift
 //  MusicPlayer
 //
 //  Created by Gabriel Maciel on 11/04/26.

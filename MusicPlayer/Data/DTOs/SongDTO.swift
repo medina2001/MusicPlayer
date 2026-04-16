@@ -33,10 +33,15 @@ extension SongDTO {
             title: title,
             artist: artistName ?? "Unknown Artist",
             album: collectionName ?? "Unknown Album",
-            artworkURL: artworkUrl100.flatMap(URL.init),
+            artworkURL: URL(string: upscaleArtworkURL(artworkUrl100)),
             previewURL: previewUrl.flatMap(URL.init),
             duration: TimeInterval(trackTimeMillis ?? 0) / 1000,
             collectionId: collectionId ?? 0
         )
+    }
+    
+    func upscaleArtworkURL(_ url: String?) -> String {
+        guard let url else { return "" }
+        return url.replacingOccurrences(of: "100x100bb.jpg", with: "1440x1440bb.jpg")
     }
 }

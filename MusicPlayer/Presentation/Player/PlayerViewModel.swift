@@ -57,4 +57,10 @@ final class PlayerViewModel {
     func seekBackward() {
         player.seekBackward(by: 15)
     }
+
+    func retry() {
+        guard let song, let url = song.previewURL else { return }
+        player.load(url: url)
+        player.play()
+    }
 }

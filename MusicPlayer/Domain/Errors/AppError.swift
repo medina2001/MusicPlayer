@@ -9,23 +9,32 @@ import Foundation
 
 enum AppError: LocalizedError {
     case networkUnavailable
-    case httpError(statusCode: Int)
+    case httpError
     case decodingFailure
     case persistenceFailure
     case playbackFailure
+    case noSongsFound
+    case requestCancelled
+    case requestSuperseded
 
     var errorDescription: String? {
         switch self {
         case .networkUnavailable:
-            return "No internet connection. Please check your network and try again."
-        case .httpError(let code):
-            return "Server error (HTTP \(code)). Please try again later."
+            return "No internet connection. Please check your connection and try again."
+        case .httpError:
+            return "Something went wrong on our end. Please try again in a moment."
         case .decodingFailure:
-            return "Could not read server response. Please try again."
+            return "We couldn't load the content right now. Please try again."
         case .persistenceFailure:
-            return "Could not save data locally."
+            return "We couldn't save your data locally."
         case .playbackFailure:
-            return "Playback failed. The preview may be unavailable."
+            return "This preview isn't available right now. Please try another song."
+        case .noSongsFound:
+            return "No songs found. Please try again."
+        case .requestCancelled:
+            return "The request was cancelled."
+        case .requestSuperseded:
+            return "A newer request replaced this one."
         }
     }
 }
