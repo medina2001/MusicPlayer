@@ -44,15 +44,10 @@ private struct SongsContentView: View {
     @Binding var searchTask: Task<Void, Never>?
     @State private var isSearching = false
     @State private var lastSearchedTerm: String = ""
+    @State private var selectedSong: Song? = nil
 
     var body: some View {
         mainContent
-            .searchable(
-                text: $searchText,
-                placement: .navigationBarDrawer,
-                prompt: "Search"
-            )
-            .searchToolbarBehavior(.minimize)
             .accessibilityLabel("Search Songs")
             .task(id: searchText) {
                 searchTask?.cancel()
@@ -94,7 +89,15 @@ private struct SongsContentView: View {
                 await viewModel.refresh()
             }
             .navigationTitle("Songs")
-            .navigationBarTitleDisplayMode(.automatic)
+            .navigationBarTitleDisplayMode(.large)
+            .navigationDestination(item: $selectedSong) { song in
+                PlayerView(song: song)
+            }
+            .searchable(
+                text: $searchText,
+                placement: .navigationBarDrawer(displayMode: .automatic),
+                prompt: "Search"
+            )
             .onAppear {
                 isSearching = false
                 if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -147,17 +150,17 @@ private struct SongsContentView: View {
                 )
             } else {
                 List(viewModel.recentSongs, id: \.id) { song in
-                    SongRow(song: song)
-                        .background {
-                            NavigationLink(value: song) {
-                                EmptyView()
-                            }
-                        }
-                        .listRowSeparator(.hidden)
-                        .accessibilityLabel("\(song.title) by \(song.artist)")
-                    
+                    Button {
+                        selectedSong = song
+                    } label: {
+                        SongRow(song: song)
+                            .accessibilityLabel("\(song.title) by \(song.artist)")
+                    }
+                    .buttonStyle(.plain)
+                    .listRowSeparator(.hidden)
                 }
                 .listStyle(.plain)
+                .searchToolbarBehavior(.minimize)
             }
         }
     }
@@ -173,21 +176,19 @@ private struct SongsContentView: View {
     private func songsList(_ songs: [Song]) -> some View {
         List {
             ForEach(Array(songs.enumerated()), id: \.offset) { index, song in
-                
-                SongRow(song: song)
-                    .background {
-                        NavigationLink(value: song) {
-                            EmptyView()
-                        }
+                Button {
+                    selectedSong = song
+                } label: {
+                    SongRow(song: song)
+                        .accessibilityLabel("\(song.title) by \(song.artist)")
+                }
+                .buttonStyle(.plain)
+                .listRowSeparator(.hidden)
+                .onAppear {
+                    if index >= songs.count - 5 && !viewModel.paginationExhausted {
+                        Task { await viewModel.loadNextPage() }
                     }
-                    .accessibilityLabel("\(song.title) by \(song.artist)")
-                
-                    .listRowSeparator(.hidden)
-                    .onAppear {
-                        if index >= songs.count - 5 && !viewModel.paginationExhausted {
-                            Task { await viewModel.loadNextPage() }
-                        }
-                    }
+                }
             }
             if viewModel.isLoadingPage {
                 HStack {
