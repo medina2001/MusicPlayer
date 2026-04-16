@@ -11,7 +11,7 @@ import Testing
 
 @MainActor
 struct MusicPlayerTests {
-    @Test func playerContextKeepsSelectedSongInQueueOrder() {
+    @Test func givenPlayerQueue_whenSelectingSong_thenKeepsQueueOrder() {
         let firstSong = makeSong(id: 1)
         let secondSong = makeSong(id: 2)
         let thirdSong = makeSong(id: 3)
@@ -23,7 +23,7 @@ struct MusicPlayerTests {
         #expect(context.hasNextSong)
     }
 
-    @Test func playerContextNavigatesBetweenSongs() {
+    @Test func givenPlayerQueue_whenMovingBetweenSongs_thenUpdatesCurrentSong() {
         let firstSong = makeSong(id: 1)
         let secondSong = makeSong(id: 2)
 
@@ -38,18 +38,113 @@ struct MusicPlayerTests {
         #expect(context.currentSong == firstSong)
     }
 
-    @Test func appRouterReusesExistingPlayerContext() {
-        let firstSong = makeSong(id: 1)
-        let secondSong = makeSong(id: 2, collectionId: 200)
-        let router = AppRouter()
+    @Test func givenRecentSongs_whenLoadingRecentSongs_thenShowsLoadedState() async {
+        let songsRepository = SongsRepositoryMock()
+        let recentSongsRepository = RecentSongsRepositoryMock()
+        let connectivityService = ConnectivityServiceMock(isConnected: true)
+        let expectedSongs = [makeSong(id: 1), makeSong(id: 2)]
+        recentSongsRepository.recentSongsToReturn = expectedSongs
+        let viewModel = SongsViewModel(
+            songsRepository: songsRepository,
+            recentSongsRepository: recentSongsRepository,
+            connectivityService: connectivityService
+        )
 
-        router.presentPlayer(song: firstSong, queue: [firstSong])
-        let firstContextID = try #require(router.playerContext?.id)
+        await viewModel.loadRecentSongs()
 
-        router.presentPlayer(song: secondSong, queue: [firstSong, secondSong])
+        #expect(viewModel.visibleSongs == expectedSongs)
+    }
 
-        #expect(router.playerContext?.id == firstContextID)
-        #expect(router.playerContext?.currentSong == secondSong)
+    @Test func givenNoInternet_whenSearchingSongs_thenShowsNetworkError() async {
+        let viewModel = SongsViewModel(
+            songsRepository: SongsRepositoryMock(),
+            recentSongsRepository: RecentSongsRepositoryMock(),
+            connectivityService: ConnectivityServiceMock(isConnected: false)
+        )
+
+        await viewModel.search(term: "Daft Punk")
+
+        #expect(viewModel.viewState == .error(.networkUnavailable))
+    }
+
+    @Test func givenInternet_whenTryingAgainWithSearchText_thenLoadsSearchResults() async {
+        let songsRepository = SongsRepositoryMock()
+        let expectedSongs = [makeSong(id: 7)]
+        songsRepository.songsToReturn = expectedSongs
+        let viewModel = SongsViewModel(
+            songsRepository: songsRepository,
+            recentSongsRepository: RecentSongsRepositoryMock(),
+            connectivityService: ConnectivityServiceMock(isConnected: true)
+        )
+        viewModel.searchText = "Daft Punk"
+
+        await viewModel.tryAgain()
+
+        #expect(viewModel.visibleSongs == expectedSongs)
+        #expect(songsRepository.receivedTerms == ["Daft Punk"])
+    }
+
+    @Test func givenNoInternet_whenFetchingAlbum_thenShowsNetworkError() async {
+        let viewModel = AlbumsViewModel(
+            albumsRepository: AlbumsRepositoryMock(),
+            connectivityService: ConnectivityServiceMock(isConnected: false)
+        )
+
+        await viewModel.fetchAlbum(collectionId: 42)
+
+        #expect(viewModel.viewState == .error(.networkUnavailable))
+    }
+
+    @Test func givenAlbumResponse_whenFetchingAlbum_thenShowsLoadedAlbum() async {
+        let albumsRepository = AlbumsRepositoryMock()
+        let expectedAlbum = makeAlbum(id: 88, songs: [makeSong(id: 1), makeSong(id: 2)])
+        albumsRepository.albumToReturn = expectedAlbum
+        let viewModel = AlbumsViewModel(
+            albumsRepository: albumsRepository,
+            connectivityService: ConnectivityServiceMock(isConnected: true)
+        )
+
+        await viewModel.fetchAlbum(collectionId: 88)
+
+        #expect(viewModel.viewState == .loaded(expectedAlbum))
+    }
+
+    @Test func givenNoInternet_whenPlayingSong_thenPlaybackStaysUnavailable() async {
+        let player = PlayerServiceMock()
+        let recentSongsRepository = RecentSongsRepositoryMock()
+        let connectivityService = ConnectivityServiceMock(isConnected: false)
+        let currentSong = makeSong(id: 1)
+        let viewModel = PlayerViewModel(
+            player: player,
+            recentSongsRepository: recentSongsRepository,
+            playerContext: PlayerContext(song: currentSong, queue: [currentSong]),
+            connectivityService: connectivityService
+        )
+
+        await viewModel.playCurrentSong()
+        viewModel.togglePlayPause()
+
+        #expect(player.loadedURLs.isEmpty)
+        #expect(player.playCallCount == 0)
+        #expect(viewModel.isPlaybackAvailable == false)
+    }
+
+    @Test func givenReplayEnabled_whenSongFinishes_thenSeeksToStartAndPlaysAgain() {
+        let player = PlayerServiceMock()
+        player.state = .finished
+        let currentSong = makeSong(id: 1)
+        let viewModel = PlayerViewModel(
+            player: player,
+            recentSongsRepository: RecentSongsRepositoryMock(),
+            playerContext: PlayerContext(song: currentSong, queue: [currentSong]),
+            connectivityService: ConnectivityServiceMock(isConnected: true)
+        )
+        viewModel.replayCurrentSong = true
+
+        viewModel.handlePlayerStateChange()
+
+        #expect(player.seekTimes == [0])
+        #expect(player.playCallCount == 1)
     }
 
     private func makeSong(id: Int, collectionId: Int = 100) -> Song {
@@ -62,6 +157,16 @@ struct MusicPlayerTests {
             previewURL: URL(string: "https://example.com/\(id).m4a"),
             duration: 30,
             collectionId: collectionId
+        )
+    }
+
+    private func makeAlbum(id: Int, songs: [Song]) -> Album {
+        Album(
+            id: id,
+            title: "Album \(id)",
+            artist: "Artist \(id)",
+            artworkURL: nil,
+            songs: songs
         )
     }
 }

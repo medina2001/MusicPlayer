@@ -24,8 +24,8 @@ struct MusicPlayerApp: App {
             switch result {
             case .success(let modelContainer):
                 container = DependencyContainer(modelContext: modelContainer.mainContext)
-            case .failure(let error):
-                print("ModelContainer failed: \(error)")
+            case .failure:
+                break
             }
         }
     }

@@ -2,7 +2,7 @@
 //  PlayerContext.swift
 //  MusicPlayer
 //
-//  Created by Codex on 16/04/26.
+//  Created by Gabriel Maciel on 16/04/26.
 //
 
 import Foundation

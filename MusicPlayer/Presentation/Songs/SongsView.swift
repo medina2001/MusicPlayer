@@ -44,12 +44,10 @@ private struct SongsContentView: View {
 
     var body: some View {
         mainContent
+            .scrollIndicators(.hidden)
             .accessibilityLabel("Search Songs")
             .onChange(of: viewModel.searchText) {
                 viewModel.handleSearchTextChange(viewModel.searchText)
-            }
-            .refreshable {
-                await viewModel.refresh()
             }
             .navigationTitle("Songs")
             .navigationBarTitleDisplayMode(.automatic)

@@ -11,12 +11,14 @@ import Observation
 @MainActor
 final class AlbumsViewModel {
     private let albumsRepository: AlbumsRepository
+    private let connectivityService: ConnectivityMonitoring
 
     private(set) var viewState: ViewState<Album> = .idle
     private var loadedCollectionId: Int?
 
-    init(albumsRepository: AlbumsRepository) {
+    init(albumsRepository: AlbumsRepository, connectivityService: ConnectivityMonitoring) {
         self.albumsRepository = albumsRepository
+        self.connectivityService = connectivityService
     }
 
     func fetchAlbumIfNeeded(collectionId: Int) async {
@@ -25,6 +27,10 @@ final class AlbumsViewModel {
     }
 
     func fetchAlbum(collectionId: Int) async {
+        guard connectivityService.isConnected else {
+            viewState = .error(.networkUnavailable)
+            return
+        }
         viewState = .loading
         do {
             let album = try await albumsRepository.fetchAlbum(collectionId: collectionId)

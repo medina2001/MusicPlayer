@@ -17,6 +17,7 @@ final class DependencyContainer {
     let albumsRepository: AlbumsRepository
     let recentSongsRepository: RecentSongsRepository
     let playerService: PlayerService
+    let connectivityService: ConnectivityMonitoring
 
     init(modelContext: ModelContext) {
         apiClient = URLSessionAPIClient()
@@ -24,24 +25,46 @@ final class DependencyContainer {
         albumsRepository = DefaultAlbumsRepository(apiClient: apiClient)
         recentSongsRepository = DefaultRecentSongsRepository(context: modelContext)
         playerService = AVPlayerService()
+        connectivityService = ConnectivityService()
+    }
+
+    init(
+        apiClient: APIClient,
+        songsRepository: SongsRepository,
+        albumsRepository: AlbumsRepository,
+        recentSongsRepository: RecentSongsRepository,
+        playerService: PlayerService,
+        connectivityService: ConnectivityMonitoring
+    ) {
+        self.apiClient = apiClient
+        self.songsRepository = songsRepository
+        self.albumsRepository = albumsRepository
+        self.recentSongsRepository = recentSongsRepository
+        self.playerService = playerService
+        self.connectivityService = connectivityService
     }
 
     func makeSongsViewModel() -> SongsViewModel {
         SongsViewModel(
             songsRepository: songsRepository,
-            recentSongsRepository: recentSongsRepository
+            recentSongsRepository: recentSongsRepository,
+            connectivityService: connectivityService
         )
     }
 
     func makeAlbumsViewModel() -> AlbumsViewModel {
-        AlbumsViewModel(albumsRepository: albumsRepository)
+        AlbumsViewModel(
+            albumsRepository: albumsRepository,
+            connectivityService: connectivityService
+        )
     }
 
     func makePlayerViewModel(playerContext: PlayerContext) -> PlayerViewModel {
         PlayerViewModel(
             player: playerService,
             recentSongsRepository: recentSongsRepository,
-            playerContext: playerContext
+            playerContext: playerContext,
+            connectivityService: connectivityService
         )
     }
 }

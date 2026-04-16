@@ -86,6 +86,7 @@ private struct PlayerContentView: View {
 
             PlayerControlsSection(
                 playerState: viewModel.playerState,
+                isPlaybackAvailable: viewModel.isPlaybackAvailable,
                 canPlayPreviousSong: viewModel.canPlayPreviousSong,
                 canPlayNextSong: viewModel.canPlayNextSong,
                 onPrevious: viewModel.playPreviousSong,
@@ -219,6 +220,7 @@ private struct PlayerSeekSection: View {
 
 private struct PlayerControlsSection: View {
     let playerState: PlayerState
+    let isPlaybackAvailable: Bool
     let canPlayPreviousSong: Bool
     let canPlayNextSong: Bool
     let onPrevious: () -> Void
@@ -228,23 +230,23 @@ private struct PlayerControlsSection: View {
     var body: some View {
         HStack(spacing: 36) {
             Button(action: onPrevious) {
-                Image(systemName: "backward.fill")
+                Image(systemName: "backward.end.fill")
                     .font(.title2)
                     .foregroundStyle(.primary)
             }
-            .disabled(!canPlayPreviousSong)
+            .disabled(!canPlayPreviousSong || !isPlaybackAvailable)
             .accessibilityLabel("Previous song")
 
             playPauseButton
-            .disabled(isLoading)
+            .disabled(isLoading || !isPlaybackAvailable)
             .accessibilityLabel(isPlaying ? "Pause" : "Play")
 
             Button(action: onNext) {
-                Image(systemName: "forward.fill")
+                Image(systemName: "forward.end.fill")
                     .font(.title2)
                     .foregroundStyle(.primary)
             }
-            .disabled(!canPlayNextSong)
+            .disabled(!canPlayNextSong || !isPlaybackAvailable)
             .accessibilityLabel("Next song")
         }
     }
@@ -254,13 +256,14 @@ private struct PlayerControlsSection: View {
         if #available(iOS 26, *) {
             Button(action: onPlayPause) {
                 playPauseContent
-                    .frame(width: 56, height: 56)
+                    .frame(width: 72, height: 72)
             }
             .buttonStyle(.glassProminent)
+            .clipShape(Circle())
         } else {
             Button(action: onPlayPause) {
                 playPauseContent
-                    .frame(width: 56, height: 56)
+                    .frame(width: 72, height: 72)
                     .background(.ultraThinMaterial, in: Circle())
             }
             .buttonStyle(.plain)
@@ -337,10 +340,11 @@ private struct PlayerProgressBar: View {
     let progress: Double
     @Binding var isEditing: Bool
     let onSeek: (Double) -> Void
+    @State private var dragProgress: Double?
 
     var body: some View {
         GeometryReader { proxy in
-            let clampedProgress = min(max(progress, 0), 1)
+            let clampedProgress = min(max(dragProgress ?? progress, 0), 1)
             let width = proxy.size.width
             let thumbOffset = max(0, min(width, width * clampedProgress))
 
@@ -366,11 +370,13 @@ private struct PlayerProgressBar: View {
                     .onChanged { value in
                         isEditing = true
                         let nextProgress = value.location.x / max(width, 1)
-                        onSeek(min(max(nextProgress, 0), 1))
+                        dragProgress = min(max(nextProgress, 0), 1)
                     }
                     .onEnded { value in
                         let nextProgress = value.location.x / max(width, 1)
-                        onSeek(min(max(nextProgress, 0), 1))
+                        let resolvedProgress = min(max(nextProgress, 0), 1)
+                        dragProgress = nil
+                        onSeek(resolvedProgress)
                         isEditing = false
                     }
             )

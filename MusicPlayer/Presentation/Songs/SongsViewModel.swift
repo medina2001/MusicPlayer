@@ -26,10 +26,16 @@ final class SongsViewModel {
 
     private let songsRepository: SongsRepository
     private let recentSongsRepository: RecentSongsRepository
+    private let connectivityService: ConnectivityMonitoring
 
-    init(songsRepository: SongsRepository, recentSongsRepository: RecentSongsRepository) {
+    init(
+        songsRepository: SongsRepository,
+        recentSongsRepository: RecentSongsRepository,
+        connectivityService: ConnectivityMonitoring
+    ) {
         self.songsRepository = songsRepository
         self.recentSongsRepository = recentSongsRepository
+        self.connectivityService = connectivityService
     }
 
     var visibleSongs: [Song] {
@@ -46,6 +52,12 @@ final class SongsViewModel {
     func search(term: String) async {
         let trimmedTerm = term.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTerm.isEmpty else { return }
+        guard connectivityService.isConnected else {
+            currentTerm = trimmedTerm
+            paginationExhausted = true
+            viewState = .error(.networkUnavailable)
+            return
+        }
 
         currentOffset = 0
         currentTerm = trimmedTerm
@@ -78,6 +90,7 @@ final class SongsViewModel {
     func loadNextPage() async {
         guard !isLoadingPage else { return }
         guard !currentTerm.isEmpty else { return }
+        guard connectivityService.isConnected else { return }
         guard !paginationExhausted else { return }
         guard case .loaded(let songs) = viewState else { return }
         isLoadingPage = true

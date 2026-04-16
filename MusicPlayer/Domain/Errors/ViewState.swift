@@ -11,3 +11,5 @@ enum ViewState<T> {
     case loaded(T)
     case error(AppError)
 }
+
+extension ViewState: Equatable where T: Equatable {}

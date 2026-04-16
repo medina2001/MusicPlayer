@@ -14,6 +14,7 @@ final class PlayerViewModel {
     private let player: PlayerService
     private let recentSongsRepository: RecentSongsRepository
     private let playerContext: PlayerContext
+    private let connectivityService: ConnectivityMonitoring
 
     private(set) var currentSong: Song
     var replayCurrentSong = false
@@ -24,15 +25,18 @@ final class PlayerViewModel {
     var canPlayPreviousSong: Bool { playerContext.hasPreviousSong }
     var canPlayNextSong: Bool { playerContext.hasNextSong }
     var albumTitle: String { currentSong.album }
+    var isPlaybackAvailable: Bool { connectivityService.isConnected }
 
     init(
         player: PlayerService,
         recentSongsRepository: RecentSongsRepository,
-        playerContext: PlayerContext
+        playerContext: PlayerContext,
+        connectivityService: ConnectivityMonitoring
     ) {
         self.player = player
         self.recentSongsRepository = recentSongsRepository
         self.playerContext = playerContext
+        self.connectivityService = connectivityService
         self.currentSong = playerContext.currentSong
     }
 
@@ -46,6 +50,7 @@ final class PlayerViewModel {
     }
 
     func togglePlayPause() {
+        guard isPlaybackAvailable else { return }
         if case .playing = playerState {
             player.pause()
         } else {
@@ -58,12 +63,14 @@ final class PlayerViewModel {
     }
 
     func playNextSong() {
+        guard isPlaybackAvailable else { return }
         guard let nextSong = playerContext.goToNextSong() else { return }
         currentSong = nextSong
         Task { await loadAndPlay(song: nextSong) }
     }
 
     func playPreviousSong() {
+        guard isPlaybackAvailable else { return }
         guard let previousSong = playerContext.goToPreviousSong() else { return }
         currentSong = previousSong
         Task { await loadAndPlay(song: previousSong) }
@@ -85,6 +92,7 @@ final class PlayerViewModel {
     }
 
     private func loadAndPlay(song: Song) async {
+        guard isPlaybackAvailable else { return }
         guard let url = song.previewURL else { return }
         player.load(url: url)
         player.play()
